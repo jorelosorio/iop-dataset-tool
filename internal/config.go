@@ -20,6 +20,7 @@ type Process struct {
 	ChunkSize    int      `yaml:"chunk_size"`
 	Steps        int      `yaml:"steps"`
 	OutputDir    string   `yaml:"output_dir"`
+	Skip         bool     `yaml:"skip"`
 	Documents    []string `yaml:"documents"`
 	SystemPrompt string   `yaml:"system_prompt"`
 	UserPrompt   string   `yaml:"user_prompt"`

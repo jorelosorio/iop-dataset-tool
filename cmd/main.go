@@ -1,18 +1,28 @@
 package main
 
 import (
+	"flag"
 	"iopairs-tool/internal"
 	"os"
 	"path/filepath"
 
-	"github.com/charmbracelet/log"
+	"log"
+
 	"github.com/joho/godotenv"
 )
 
+var configPath string
+
+func init() {
+	// Parse the command-line flag for the config file path
+	flag.StringVar(&configPath, "config", "config.yaml", "path to the config file")
+}
+
 func main() {
+	flag.Parse()
+
 	godotenv.Load()
 
-	configPath := "../data/quillero/config.yaml"
 	config, err := internal.NewConfig(configPath)
 	if err != nil {
 		log.Fatal(err)
@@ -25,6 +35,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Run the internal logic with the config and relative path
 	err = internal.Run(config, relativePath)
 	if err != nil {
 		log.Fatal(err)

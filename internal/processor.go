@@ -10,7 +10,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"log"
+
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -35,6 +36,11 @@ type Conversation struct {
 func Run(config Config, relativePath string) error {
 	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 	for _, process := range config.Processes {
+		if process.Skip {
+			log.Printf("🚫 Skipping: %s", process.Name)
+			continue
+		}
+
 		outputDir := filepath.Join(relativePath, process.OutputDir)
 
 		log.Printf("🤓 Processing: %s", process.Name)
@@ -103,19 +109,19 @@ func Run(config Config, relativePath string) error {
 		log.Printf("✅ All steps completed!")
 	}
 
-	log.Info("🎉🍻 All processes completed successfully!")
+	log.Printf("🎉🍻 All processes completed successfully!")
 
 	return nil
 }
 
 func DumpDebugRawData(data JSONData, outputDir string) error {
 	if data.Raw != "" {
-		log.Errorf("💥 An error occurred, saving raw response to a file for debugging")
+		log.Print("💥 An error occurred, saving raw response to a file for debugging")
 		error := DumpDataIntoOutputDir([]byte(data.Raw), outputDir, "debug")
 		if error != nil {
 			return error
 		}
-		log.Info("💾 Raw response saved")
+		log.Fatal("💾 Raw response saved")
 	}
 	return nil
 }
