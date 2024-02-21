@@ -79,7 +79,8 @@ func SplitTextIntoChunks(text string, chunkSize int) []string {
 		splits = append(splits, strings.TrimSpace(chunk.String()))
 		chunk.Reset()
 
-		startIdx = endIdx // Start the next chunk right after the current one ends
+		// Start the next chunk right after the current one ends
+		startIdx = endIdx
 	}
 
 	return splits

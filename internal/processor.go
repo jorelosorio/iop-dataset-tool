@@ -19,7 +19,7 @@ const (
 	FunctionTypeName = "json_schema"
 )
 
-type JSONData struct {
+type ResponseData struct {
 	Raw  string
 	Data any
 }
@@ -34,7 +34,6 @@ type Conversation struct {
 }
 
 func Run(config Config, relativePath string) error {
-	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 	for _, process := range config.Processes {
 		if process.Skip {
 			log.Printf("🚫 Skipping: %s", process.Name)
@@ -68,10 +67,15 @@ func Run(config Config, relativePath string) error {
 				chunkInfo := fmt.Sprintf("🍤 Chunk(%d of %d)", chunkIndex+1, len(chunkCorpus))
 				debugInfo := fmt.Sprintf("%s %s ", stepInfo, chunkInfo)
 
-				log.Printf("💾 %s processing", debugInfo)
+				log.Printf("🥁 %s processing", debugInfo)
+
+				target, err := getTargetByName(config.Targets, process.Target)
+				if err != nil {
+					return err
+				}
 
 				data, err := requestModel(
-					client,
+					target,
 					process,
 					string(corpus),
 					process.JSONSchema,
@@ -88,21 +92,28 @@ func Run(config Config, relativePath string) error {
 					return err
 				}
 
-				response, isOk := data.Data.(Response)
-				if !isOk {
-					err := DumpDebugRawData(data, outputDir)
+				if data.Data != nil {
+					response, isOk := data.Data.(Response)
+					if !isOk {
+						err := DumpDebugRawData(data, outputDir)
+						if err != nil {
+							return err
+						}
+						return fmt.Errorf("error casting response might be because we got an empty JSON response %s", process.Name)
+					}
+
+					err = exportProcessResponseData(response, outputDir)
 					if err != nil {
 						return err
 					}
-					return fmt.Errorf("error casting response might be because we got an empty JSON response %s", process.Name)
+				} else {
+					err := DumpRawData(data.Raw, outputDir)
+					if err != nil {
+						return err
+					}
 				}
 
-				err = exportProcessResponseData(response, outputDir)
-				if err != nil {
-					return err
-				}
-
-				log.Printf("✅ %s processing completed!", debugInfo)
+				log.Printf("	✅ %s processing completed!", debugInfo)
 			}
 			log.Printf("✅ Step(%d) completed!", i)
 		}
@@ -114,33 +125,59 @@ func Run(config Config, relativePath string) error {
 	return nil
 }
 
-func DumpDebugRawData(data JSONData, outputDir string) error {
+func DumpDebugRawData(data ResponseData, outputDir string) error {
 	if data.Raw != "" {
 		log.Print("💥 An error occurred, saving raw response to a file for debugging")
 		error := DumpDataIntoOutputDir([]byte(data.Raw), outputDir, "debug")
 		if error != nil {
 			return error
 		}
-		log.Fatal("💾 Raw response saved")
+		log.Fatal("💾 Raw response saved for debugging")
 	}
 	return nil
 }
 
-func requestModel(client *openai.Client, process Process, corpus string, jsonSchema JSONSchema) (JSONData, error) {
+func DumpRawData(rawData string, outputDir string) error {
+	if len(rawData) == 0 {
+		return nil
+	}
+
+	error := DumpDataIntoOutputDir([]byte(rawData), outputDir, "")
+	if error != nil {
+		return error
+	}
+
+	log.Printf("💾 Raw response saved")
+
+	return nil
+}
+
+func getTargetByName(targets []Target, name string) (Target, error) {
+	for _, target := range targets {
+		if target.Name == name {
+			return target, nil
+		}
+	}
+
+	return Target{}, fmt.Errorf("target not found: %s", name)
+}
+
+func requestModel(target Target, process Process, corpus string, jsonSchema JSONSchema) (ResponseData, error) {
 	templateData := struct {
 		Document string
 	}{Document: string(corpus)}
 
 	systemPrompt, err := executeTemplate("systemPrompt", process.SystemPrompt, templateData)
 	if err != nil {
-		return JSONData{}, fmt.Errorf("error executing system prompt template for %s: %v", process.Name, err)
+		return ResponseData{}, fmt.Errorf("error executing system prompt template for %s: %v", process.Name, err)
 	}
 
 	userPrompt, err := executeTemplate("userPrompt", process.UserPrompt, templateData)
 	if err != nil {
-		return JSONData{}, fmt.Errorf("error executing user prompt template for %s: %v", process.Name, err)
+		return ResponseData{}, fmt.Errorf("error executing user prompt template for %s: %v", process.Name, err)
 	}
 
+	processJSONSchema := jsonSchema != nil && !process.SkipJsonSchema
 	req := openai.ChatCompletionRequest{
 		Model: process.Model,
 		Messages: []openai.ChatCompletionMessage{
@@ -153,9 +190,18 @@ func requestModel(client *openai.Client, process Process, corpus string, jsonSch
 				Content: userPrompt,
 			},
 		},
-		MaxTokens:   process.MaxTokens,
-		Temperature: float32(process.Temperature),
-		Tools: []openai.Tool{
+	}
+
+	if process.MaxTokens != 0 {
+		req.MaxTokens = process.MaxTokens
+	}
+
+	if process.Temperature != 0 {
+		req.Temperature = process.Temperature
+	}
+
+	if processJSONSchema {
+		req.Tools = []openai.Tool{
 			{
 				Type: openai.ToolTypeFunction,
 				Function: openai.FunctionDefinition{
@@ -163,10 +209,16 @@ func requestModel(client *openai.Client, process Process, corpus string, jsonSch
 					Parameters: jsonSchema,
 				},
 			},
-		},
+		}
 	}
 
-	log.Printf("	🤖 Requesting chat completion")
+	apiToken := os.Getenv(target.ApiKeyEnv)
+	config := openai.DefaultConfig(apiToken)
+	config.BaseURL = target.ApiUrl
+
+	client := openai.NewClientWithConfig(config)
+
+	log.Printf("	🤖 Requesting chat completion at %s", process.Target)
 
 	startTime := time.Now()
 	resp, err := client.CreateChatCompletion(context.Background(), req)
@@ -175,29 +227,38 @@ func requestModel(client *openai.Client, process Process, corpus string, jsonSch
 	log.Printf("	⏰ Took: %.2f seconds", float32(latency)/1000)
 
 	if err != nil {
-		return JSONData{}, fmt.Errorf("error requesting chat completion for %s: %v", process.Name, err)
+		return ResponseData{}, fmt.Errorf("error requesting chat completion for %s: %v", process.Name, err)
 	}
-
-	var jsonString string
 
 	if len(resp.Choices) == 0 {
-		return JSONData{}, fmt.Errorf("empty response choices for %s", process.Name)
+		return ResponseData{}, fmt.Errorf("empty response choices for %s", process.Name)
 	}
 
-	for _, toolCall := range resp.Choices[0].Message.ToolCalls {
-		if toolCall.Function.Name == FunctionTypeName {
-			jsonString = toolCall.Function.Arguments
-			break
+	var responseString string = ""
+
+	for _, choice := range resp.Choices {
+		if processJSONSchema {
+			for _, toolCall := range choice.Message.ToolCalls {
+				if toolCall.Function.Name == FunctionTypeName {
+					responseString += toolCall.Function.Arguments
+				}
+			}
+		} else {
+			responseString += choice.Message.Content
 		}
 	}
 
-	if jsonString == "" {
-		return JSONData{Raw: resp.Choices[0].Message.Content}, fmt.Errorf("missing `%s` function in response for %s", FunctionTypeName, process.Name)
+	if processJSONSchema {
+		if len(responseString) == 0 {
+			log.Printf("	🙄 missing `%s` function in response for %s: Empty response.", FunctionTypeName, process.Name)
+			return ResponseData{}, nil
+		}
+
+		response, err := parseJSONResponse(responseString, process.Name)
+		return ResponseData{Raw: responseString, Data: response}, err
 	}
 
-	response, err := parseJSONResponse(jsonString, process.Name)
-
-	return JSONData{Raw: jsonString, Data: response}, err
+	return ResponseData{Raw: responseString, Data: nil}, nil
 }
 
 func executeTemplate(templateName, templateContent string, templateData interface{}) (string, error) {
