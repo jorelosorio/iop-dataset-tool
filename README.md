@@ -6,10 +6,18 @@ It is a tool that allows you to create a dataset of input / output pairs or a de
 
 ## Command
 
+To execute the tool, you need to use the following command:
+
 ```sh
 iopdt --config <path-to-config.yaml>
 ```
 > NOTE: All the generated files are relative to the configuration file path.
+
+## .Env
+
+From the configuration file, you can use environment variables to store sensitive information like API keys.
+
+You can set them by creating a `.env` file from the binary file is located or by setting them in the environment.
 
 ## Config
 

@@ -1,0 +1,37 @@
+targets:
+  - name: openai
+    api_url: https://api.openai.com/v1/
+    api_key_env: OPENAI_API_KEY
+
+processes:
+  - name: dialog-with-chat-gpt3
+    model: gpt-3.5-turbo-0125
+    target: openai
+    temperature: 0.6
+    max_tokens: 2100
+    chunk_size: 2100
+    steps: 1
+    skip: false
+    documents:
+      - corpus/*.txt
+    output_dir: output/corpus
+    system_prompt: |
+      You are a smart person that creates questions in 'input' and 'output' pairs from the given document.
+    user_prompt: |
+      Here is the document:
+      {{ .Document }}
+    skip_json_schema: false
+    json_schema:
+      type: object
+      properties:
+        questions:
+          type: array
+          items:
+            type: object
+            properties:
+              input:
+                type: string
+              output:
+                type: string
+            required: [input, output]
+      required: [questions]
