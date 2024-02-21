@@ -6,7 +6,12 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/cmd/main.go"
+            "program": "${workspaceFolder}/cmd/main.go",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "-config",
+                "data/quillero/config.yaml"
+            ]
         }
     ]
 }
