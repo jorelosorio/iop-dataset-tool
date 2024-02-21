@@ -27,7 +27,7 @@ archives:
       - goos: windows
         format: zip
     builds:
-      - cli
+      - iopdt
     files: []
 changelog:
   sort: asc
