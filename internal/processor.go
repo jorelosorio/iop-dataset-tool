@@ -43,7 +43,7 @@ func Run(config Config, relativePath string) error {
 		chunkCorpus := SplitTextIntoChunks(corpus, process.ChunkSize)
 		log.Printf("🍤🍤 Chunking corpus into %d", len(chunkCorpus))
 		for chunkIndex, corpus := range chunkCorpus {
-			chunkInfo := fmt.Sprintf("🍤 Chunk(%d of %d)", chunkIndex+1, len(chunkCorpus))
+			chunkInfo := fmt.Sprintf("🍤 Chunk (%d of %d)", chunkIndex+1, len(chunkCorpus))
 
 			log.Printf("🥁 %s processing", chunkInfo)
 
