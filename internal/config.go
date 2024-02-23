@@ -27,9 +27,9 @@ type Process struct {
 	Temperature  float32  `yaml:"temperature"`
 	MaxTokens    int      `yaml:"max_tokens"`
 	ChunkSize    int      `yaml:"chunk_size"`
-	OutputDir    string   `yaml:"output_dir"`
 	Skip         bool     `yaml:"skip"`
 	Documents    []string `yaml:"documents"`
+	OutputDir    string   `yaml:"output_dir"`
 	SystemPrompt string   `yaml:"system_prompt"`
 	UserPrompt   string   `yaml:"user_prompt"`
 	JSONSchema   `yaml:"json_schema,inline"`
