@@ -8,21 +8,28 @@ import (
 	"time"
 )
 
-func exportProcessResponseData(rawJSONResponse Response, outputDir string) error {
-	jsonData, err := json.MarshalIndent(rawJSONResponse, "", "  ")
+func ExportData(data any, outputDir string) error {
+	if dataString, isString := data.(string); isString {
+		err := dumpDataIntoOutputDir([]byte(dataString), "txt", outputDir)
+		if err != nil {
+			return err
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	error := DumpDataIntoOutputDir(jsonData, outputDir, "")
-	if error != nil {
-		return error
+	err = dumpDataIntoOutputDir(jsonData, "jsonl", outputDir)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func DumpDataIntoOutputDir(data []byte, outputDir string, sufix string) error {
+func dumpDataIntoOutputDir(data []byte, extension, outputDir string) error {
 	err := MakeDir(outputDir)
 	if err != nil {
 		return err
@@ -30,12 +37,7 @@ func DumpDataIntoOutputDir(data []byte, outputDir string, sufix string) error {
 
 	var fileName string
 	currentTime := time.Now().Unix()
-	if sufix == "" {
-		fileName = fmt.Sprintf("%d.json", currentTime)
-	} else {
-		fileName = fmt.Sprintf("%d_%s.json", currentTime, sufix)
-	}
-
+	fileName = fmt.Sprintf("%d.%s", currentTime, extension)
 	filePath := filepath.Join(outputDir, fileName)
 
 	err = os.WriteFile(filePath, data, os.ModePerm)

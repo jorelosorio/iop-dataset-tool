@@ -1,8 +1,18 @@
-# Input / Output Pairs Dataset Tool or (IOPDT) 🤖
+```
+ ________  ______   ______   ______   _________  
+/_______/\/_____/\ /_____/\ /_____/\ /________/\ 
+\__.::._\/\:::_ \ \\:::_ \ \\:::_ \ \\__.::.__\/ 
+   \::\ \  \:\ \ \ \\:(🤖)\ \\:\ \ \ \  \::\ \   
+   _\::\ \__\:\ \ \ \\: ___\/ \:\ \ \ \  \::\ \  
+  /__\::\__/\\:\_\ \ \\ \ \    \:\/.:| |  \::\ \ 
+  \________\/ \_____\/ \_\/     \____/_/   \__\/ 
+```
 
 ## What is IOPDT?
 
-It is a tool that allows you to create a dataset of input / output pairs or a defined `JSON Schema` from a set of files. It is useful for creating datasets for machine learning models.
+Input / Output Pairs Dataset Tool 🤖
+
+It is a tool that allows you to infer an AI model (using OpenAI API Format) to get back responses on `input/output pairs` or a defined `JSON Schema` from a set of files. It is useful for creating datasets for machine learning models.
 
 ## Command
 
@@ -43,26 +53,49 @@ processes:
     model: gpt-3.5-turbo-0125 # The model to use
     target: openai # The target configuration to use when calling the API
     temperature: 0.6 # The temperature to use when calling the API. Use `0` to disable
-    max_tokens: 2100 # The maximum tokens to use when calling the API. Max depends on the model and use `0` to disable and use the default value for the model.
-    chunk_size: 2100 # The chunk size in which the input will be split to call the API.
-    steps: 1 # How many iterations of the same input will be used to generate the output.
-    skip: false # Ignore the process when executing the tool
-    # The input to use when calling the API, it can be a path to a file or a pattern to match multiple files. NOTE: All files are relative to the configuration file path.
+    # The maximum tokens to use when calling the API. 
+    ## Max depends on the model and use `0` to disable and 
+    # use the default value for the model.
+    max_tokens: 2100 
+    chunk_size: 2100 # The chunk size in which the input will be split to call the API. default: 4096
+    skip: false # Ignore the process when executing the tool. default: false
+    # The input to use when calling the API, 
+    # it can be a path to a file or a pattern to match multiple files. 
+    ## NOTE: All files are relative to the configuration file path.
     documents:
       - corpus/*.txt
-    output_dir: output/corpus # The output directory to save the results. This directory is relative to the configuration file path.
+    # The output directory to save the results. 
+    # This directory is relative to the configuration file path.
+    # default: output
+    output_dir: output/corpus
     # The instruction to the system (Context) to use when calling the API
+    # Try to be as specific as possible to get the best results.
+    # The Tool first try to find all JSON inside ````json ... ```` and then if not, parse the whole text.
     system_prompt: |
       You are a smart person that creates questions in 'input' and 'output' pairs from the given document.
-    ## User prompt to use when calling the API.
-    ## It uses .Document which is the text extracted from the documents splitted by the chunk size.
+      Expected response format:
+
+      ```json
+      {
+        "questions": [
+          {
+            "input": "What is the capital of France?",
+            "output": "Paris"
+          }
+        ]
+      }
+      ```
+    # User prompt to use when calling the API.
+    # It uses .Document which is the text extracted
+    # from the documents splitted by the chunk size.
     user_prompt: |
       Here is the document:
       {{ .Document }}
-    skip_json_schema: false # Skip the JSON schema validation when merging the results. It is needed when a model doest not support JSONSchema validation.
-
-    ## If the response is a JSON object, it will use the JSON schema to validate the response and extract the data.
-    ## NOTE: This might not be supported by all the models. It uses the `function-calling` https://platform.openai.com/docs/guides/function-calling
+    # If the response is a JSON object, it will use the JSON schema 
+    # to validate the response and extract the data.
+    # If the data is not valid, then saves a txt.
+    ## NOTE: Follow the JSON Schema format:
+    ## https://json-schema.org/learn/getting-started-step-by-step
     json_schema:
       type: object
       properties:

@@ -10,8 +10,6 @@ processes:
     temperature: 0.6
     max_tokens: 2100
     chunk_size: 2100
-    steps: 1
-    skip: false
     documents:
       - corpus/*.txt
     output_dir: output/corpus
@@ -20,7 +18,6 @@ processes:
     user_prompt: |
       Here is the document:
       {{ .Document }}
-    skip_json_schema: false
     json_schema:
       type: object
       properties:

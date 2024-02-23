@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"iopairs-tool/internal"
 	"os"
 	"path/filepath"
@@ -22,6 +23,18 @@ func main() {
 	flag.Parse()
 
 	godotenv.Load()
+
+	logo := `
+ ________  ______   ______   ______   _________  
+/_______/\/_____/\ /_____/\ /_____/\ /________/\ 
+\__.::._\/\:::_ \ \\:::_ \ \\:::_ \ \\__.::.__\/ 
+   \::\ \  \:\ \ \ \\:(🤖)\ \\:\ \ \ \  \::\ \   
+   _\::\ \__\:\ \ \ \\: ___\/ \:\ \ \ \  \::\ \  
+  /__\::\__/\\:\_\ \ \\ \ \    \:\/.:| |  \::\ \ 
+  \________\/ \_____\/ \_\/     \____/_/   \__\/
+  `
+
+	fmt.Printf("\x1b[34m%s\x1b[0m", logo)
 
 	config, err := internal.NewConfig(configPath)
 	if err != nil {

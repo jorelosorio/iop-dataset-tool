@@ -13,25 +13,8 @@ import (
 	"log"
 
 	"github.com/sashabaranov/go-openai"
+	"github.com/xeipuuv/gojsonschema"
 )
-
-const (
-	FunctionTypeName = "json_schema"
-)
-
-type ResponseData struct {
-	Raw  string
-	Data any
-}
-
-type Response struct {
-	Conversations []Conversation `json:"conversations"`
-}
-
-type Conversation struct {
-	Input  string `json:"input"`
-	Output string `json:"output"`
-}
 
 func Run(config Config, relativePath string) error {
 	for _, process := range config.Processes {
@@ -45,79 +28,56 @@ func Run(config Config, relativePath string) error {
 		log.Printf("🤓 Processing: %s", process.Name)
 
 		log.Printf("📚 Collecting corpus...")
-		corpus, err := CollectCorpusData(process.Documents, relativePath)
+		corpus, err := GetDocumentsCorpus(process.Documents, relativePath)
 		if err != nil {
 			return err
 		}
 
 		log.Printf("📑 Corpus collected: %d", len(corpus))
 
-		steps := 1
-		if process.Steps != 0 {
-			steps = process.Steps
+		if len(corpus) == 0 {
+			log.Printf("🚫 Skipping: %s, empty corpus", process.Name)
+			continue
 		}
 
-		for i := 1; i <= steps; i++ {
-			stepInfo := fmt.Sprintf("🐾 Step(%d of %d)", i, steps)
+		chunkCorpus := SplitTextIntoChunks(corpus, process.ChunkSize)
+		log.Printf("🍤🍤 Chunking corpus into %d chunks", len(chunkCorpus))
+		for chunkIndex, corpus := range chunkCorpus {
+			chunkInfo := fmt.Sprintf("🍤 Chunk(%d of %d)", chunkIndex+1, len(chunkCorpus))
 
-			log.Printf("%s processing", stepInfo)
-			chunkCorpus := SplitTextIntoChunks(corpus, process.ChunkSize)
-			log.Printf("%s Chunking corpus into %d chunks", stepInfo, len(chunkCorpus))
-			for chunkIndex, corpus := range chunkCorpus {
-				chunkInfo := fmt.Sprintf("🍤 Chunk(%d of %d)", chunkIndex+1, len(chunkCorpus))
-				debugInfo := fmt.Sprintf("%s %s ", stepInfo, chunkInfo)
+			log.Printf("🥁 %s processing", chunkInfo)
 
-				log.Printf("🥁 %s processing", debugInfo)
-
-				target, err := getTargetByName(config.Targets, process.Target)
-				if err != nil {
-					return err
-				}
-
-				data, err := requestModel(
-					target,
-					process,
-					string(corpus),
-					process.JSONSchema,
-				)
-
-				if err != nil {
-					// It might that the JSON is not formatted correctly, or an error was found
-					// then save raw JSON to a file for debugging
-					dumpError := DumpDebugRawData(data, outputDir)
-					if dumpError != nil {
-						return fmt.Errorf("error dumping raw data while: %v", err)
-					}
-
-					return err
-				}
-
-				if data.Data != nil {
-					response, isOk := data.Data.(Response)
-					if !isOk {
-						err := DumpDebugRawData(data, outputDir)
-						if err != nil {
-							return err
-						}
-						return fmt.Errorf("error casting response might be because we got an empty JSON response %s", process.Name)
-					}
-
-					err = exportProcessResponseData(response, outputDir)
-					if err != nil {
-						return err
-					}
-				} else {
-					err := DumpRawData(data.Raw, outputDir)
-					if err != nil {
-						return err
-					}
-				}
-
-				log.Printf("	✅ %s processing completed!", debugInfo)
+			target, err := config.GetTarget(process.Target)
+			if err != nil {
+				return err
 			}
-			log.Printf("✅ Step(%d) completed!", i)
+
+			data, err := requestModel(
+				string(corpus),
+				process,
+				target,
+			)
+
+			if err != nil {
+				// It might that the JSON is not formatted correctly, or an error was found
+				// then save raw JSON to a file for debugging
+				log.Print("	💥 An error occurred! Saving response to a file for debugging")
+				errExporting := ExportData(data, outputDir)
+				if errExporting != nil {
+					return errExporting
+				}
+
+				return err
+			}
+
+			err = ExportData(data, outputDir)
+			if err != nil {
+				return err
+			}
+
+			log.Printf("	💾 Raw response saved")
+			log.Printf("	✅ %s processing completed!", chunkInfo)
 		}
-		log.Printf("✅ All steps completed!")
 	}
 
 	log.Printf("🎉🍻 All processes completed successfully!")
@@ -125,59 +85,21 @@ func Run(config Config, relativePath string) error {
 	return nil
 }
 
-func DumpDebugRawData(data ResponseData, outputDir string) error {
-	if data.Raw != "" {
-		log.Print("💥 An error occurred, saving raw response to a file for debugging")
-		error := DumpDataIntoOutputDir([]byte(data.Raw), outputDir, "debug")
-		if error != nil {
-			return error
-		}
-		log.Fatal("💾 Raw response saved for debugging")
-	}
-	return nil
-}
-
-func DumpRawData(rawData string, outputDir string) error {
-	if len(rawData) == 0 {
-		return nil
-	}
-
-	error := DumpDataIntoOutputDir([]byte(rawData), outputDir, "")
-	if error != nil {
-		return error
-	}
-
-	log.Printf("💾 Raw response saved")
-
-	return nil
-}
-
-func getTargetByName(targets []Target, name string) (Target, error) {
-	for _, target := range targets {
-		if target.Name == name {
-			return target, nil
-		}
-	}
-
-	return Target{}, fmt.Errorf("target not found: %s", name)
-}
-
-func requestModel(target Target, process Process, corpus string, jsonSchema JSONSchema) (ResponseData, error) {
+func requestModel(corpus string, process Process, target Target) (any, error) {
 	templateData := struct {
 		Document string
 	}{Document: string(corpus)}
 
-	systemPrompt, err := executeTemplate("systemPrompt", process.SystemPrompt, templateData)
+	systemPrompt, err := parseTemplate("systemPrompt", process.SystemPrompt, templateData)
 	if err != nil {
-		return ResponseData{}, fmt.Errorf("error executing system prompt template for %s: %v", process.Name, err)
+		return nil, fmt.Errorf("error executing system prompt template for %s: %v", process.Name, err)
 	}
 
-	userPrompt, err := executeTemplate("userPrompt", process.UserPrompt, templateData)
+	userPrompt, err := parseTemplate("userPrompt", process.UserPrompt, templateData)
 	if err != nil {
-		return ResponseData{}, fmt.Errorf("error executing user prompt template for %s: %v", process.Name, err)
+		return nil, fmt.Errorf("error executing user prompt template for %s: %v", process.Name, err)
 	}
 
-	processJSONSchema := jsonSchema != nil && !process.SkipJsonSchema
 	req := openai.ChatCompletionRequest{
 		Model: process.Model,
 		Messages: []openai.ChatCompletionMessage{
@@ -200,18 +122,6 @@ func requestModel(target Target, process Process, corpus string, jsonSchema JSON
 		req.Temperature = process.Temperature
 	}
 
-	if processJSONSchema {
-		req.Tools = []openai.Tool{
-			{
-				Type: openai.ToolTypeFunction,
-				Function: openai.FunctionDefinition{
-					Name:       FunctionTypeName,
-					Parameters: jsonSchema,
-				},
-			},
-		}
-	}
-
 	apiToken := os.Getenv(target.ApiKeyEnv)
 	config := openai.DefaultConfig(apiToken)
 	config.BaseURL = target.ApiUrl
@@ -227,81 +137,82 @@ func requestModel(target Target, process Process, corpus string, jsonSchema JSON
 	log.Printf("	⏰ Took: %.2f seconds", float32(latency)/1000)
 
 	if err != nil {
-		return ResponseData{}, fmt.Errorf("error requesting chat completion for %s: %v", process.Name, err)
+		return nil, fmt.Errorf("error requesting chat completion for %s: %v", process.Name, err)
 	}
 
 	if len(resp.Choices) == 0 {
-		return ResponseData{}, fmt.Errorf("empty response choices for %s", process.Name)
+		return nil, fmt.Errorf("empty response choices for %s", process.Name)
 	}
 
-	var responseString string = ""
+	response := resp.Choices[0].Message.Content
 
-	for _, choice := range resp.Choices {
-		if processJSONSchema {
-			for _, toolCall := range choice.Message.ToolCalls {
-				if toolCall.Function.Name == FunctionTypeName {
-					responseString += toolCall.Function.Arguments
-				}
+	if len(response) == 0 {
+		return nil, fmt.Errorf("missing response for %s: Empty response", process.Name)
+	}
+
+	if process.JSONSchema != nil {
+		jsonObject, err := ExtractJsonFromText(response)
+		if err != nil {
+			// If error while extracting JSON try to parse the whole response
+			jsonObj, errParsing := parseJSONWithSchema(response, process.JSONSchema)
+			if errParsing != nil {
+				return response, errParsing
 			}
-		} else {
-			responseString += choice.Message.Content
-		}
-	}
 
-	if processJSONSchema {
-		if len(responseString) == 0 {
-			log.Printf("	🙄 missing `%s` function in response for %s: Empty response.", FunctionTypeName, process.Name)
-			return ResponseData{}, nil
+			return jsonObj, nil
 		}
 
-		response, err := parseJSONResponse(responseString, process.Name)
-		return ResponseData{Raw: responseString, Data: response}, err
+		// If JSON was found, then validate each JSON object
+		var resultObjs = []any{}
+		for _, jsonStr := range jsonObject {
+			jsonObj, errParsing := parseJSONWithSchema(jsonStr, process.JSONSchema)
+			if err != nil {
+				return response, errParsing
+			}
+
+			resultObjs = append(resultObjs, jsonObj)
+		}
+
+		return resultObjs, nil
 	}
 
-	return ResponseData{Raw: responseString, Data: nil}, nil
+	return response, nil
 }
 
-func executeTemplate(templateName, templateContent string, templateData interface{}) (string, error) {
-	tmpl := template.Must(template.New(templateName).Parse(templateContent))
+func parseJSONWithSchema(jsonStr string, schema JSONSchema) (any, error) {
+	documentLoader := gojsonschema.NewStringLoader(jsonStr)
+	schemaLoader := gojsonschema.NewGoLoader(schema)
+	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
+
+	if err != nil {
+		return nil, fmt.Errorf("error validating JSON schema")
+	}
+
+	if result.Valid() {
+		var jsonObj any
+		err := json.Unmarshal([]byte(jsonStr), &jsonObj)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling JSON")
+		}
+
+		return jsonObj, nil
+	} else {
+		return nil, fmt.Errorf("invalid JSON schema: %v", result.Errors())
+	}
+}
+
+func parseTemplate(templateName, templateContent string, templateData interface{}) (string, error) {
+	tmpl, err := template.New(templateName).Parse(templateContent)
+	if err != nil {
+		return "", fmt.Errorf("error parsing template %s: %v", templateName, err)
+	}
+
 	var buf bytes.Buffer
-	err := tmpl.Execute(&buf, templateData)
+	err = tmpl.Execute(&buf, templateData)
 	if err != nil {
 		return "", fmt.Errorf("error executing template %s: %v", templateName, err)
 	}
 
 	result := buf.String()
 	return result, nil
-}
-
-func parseJSONResponse(jsonString, promptName string) (Response, error) {
-	var response Response
-	rawJSONDataBytes := []byte(jsonString)
-	err := json.Unmarshal(rawJSONDataBytes, &response)
-	if err != nil {
-		return Response{}, fmt.Errorf("error parsing JSON %s:%s", promptName, jsonString)
-	}
-
-	return response, nil
-}
-
-func getDocumentPaths(documents []string, relativePath string) ([]string, error) {
-	uniqRelativeDocumentPaths := map[string]string{}
-	for _, documentPath := range documents {
-		relativeDocumentPath := filepath.Join(relativePath, documentPath)
-		relativeDocumentPaths, err := ExpandFiles(relativeDocumentPath)
-		if err != nil {
-			return []string{}, err
-		}
-
-		for _, relativeDocumentPath := range relativeDocumentPaths {
-			uniqRelativeDocumentPaths[relativeDocumentPath] = relativeDocumentPath
-		}
-	}
-
-	var documentPaths []string
-	for _, relativeDocumentPath := range uniqRelativeDocumentPaths {
-		documentPaths = append(documentPaths, relativeDocumentPath)
-	}
-
-	return documentPaths, nil
 }

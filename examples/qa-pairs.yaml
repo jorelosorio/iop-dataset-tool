@@ -1,0 +1,44 @@
+targets:
+  - name: together
+    api_url: https://api.together.xyz
+    api_key_env: TOGETHER_API_KEY
+
+processes:
+  - name: qa-pairs
+    model: mistralai/Mixtral-8x7B-Instruct-v0.1
+    target: together
+    documents:
+      - corpus/*.txt
+    system_prompt: |
+      You are a smart professor. You create question and answer pairs from the given document for your students.
+      Respond with an array of strict JSON 'input' & 'output' pairs.
+
+      Expected response format:
+
+      ```json
+      {
+        "questions": [
+          {
+            "input": "What is the capital of France?",
+            "output": "Paris"
+          }
+        ]
+      }
+      ```
+    user_prompt: |
+      Here is the document:
+      {{ .Document }}
+    json_schema:
+      type: object
+      properties:
+        questions:
+          type: array
+          items:
+            type: object
+            properties:
+              input:
+                type: string
+              output:
+                type: string
+            required: [input, output]
+      required: [questions]
