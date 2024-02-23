@@ -41,7 +41,7 @@ func Run(config Config, relativePath string) error {
 		}
 
 		chunkCorpus := SplitTextIntoChunks(corpus, process.ChunkSize)
-		log.Printf("🍤🍤 Chunking corpus into %d chunks", len(chunkCorpus))
+		log.Printf("🍤🍤 Chunking corpus into %d", len(chunkCorpus))
 		for chunkIndex, corpus := range chunkCorpus {
 			chunkInfo := fmt.Sprintf("🍤 Chunk(%d of %d)", chunkIndex+1, len(chunkCorpus))
 
@@ -58,10 +58,12 @@ func Run(config Config, relativePath string) error {
 				target,
 			)
 
+			// It might that the JSON is not formatted correctly, or an error was found
+			// then save raw JSON to a file for debugging
 			if err != nil {
-				// It might that the JSON is not formatted correctly, or an error was found
-				// then save raw JSON to a file for debugging
-				log.Print("	💥 An error occurred! Saving response to a file for debugging")
+				log.Printf("	💥 An error occurred: %v", err)
+				log.Print("	🛟 Saving response to a file for debugging")
+
 				errExporting := ExportData(data, outputDir)
 				if errExporting != nil {
 					return errExporting
@@ -75,7 +77,7 @@ func Run(config Config, relativePath string) error {
 				return err
 			}
 
-			log.Printf("	💾 Raw response saved")
+			log.Printf("	💾 JSON response saved")
 			log.Printf("	✅ %s processing completed!", chunkInfo)
 		}
 	}
