@@ -12,11 +12,17 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var configPath string
+var (
+	configPath  string
+	showVersion bool
+
+	version = "undefined"
+)
 
 func init() {
 	// Parse the command-line flag for the config file path
 	flag.StringVar(&configPath, "config", "config.yaml", "path to the config file")
+	flag.BoolVar(&showVersion, "version", false, "print the version")
 }
 
 func main() {
@@ -33,8 +39,12 @@ func main() {
   /__\::\__/\\:\_\ \ \\ \ \    \:\/.:| |  \::\ \ 
   \________\/ \_____\/ \_\/     \____/_/   \__\/
   `
-
 	fmt.Printf("\x1b[34m%s\x1b[0m", logo)
+
+	if showVersion {
+		fmt.Printf("\n	Version: %s\n", version)
+		os.Exit(0)
+	}
 
 	config, err := internal.NewConfig(configPath)
 	if err != nil {

@@ -10,6 +10,7 @@ builds:
       - darwin
     ldflags:
       - -s -w
+      - -X main.version=$(git describe --always --long --dirty)
     main: ./cmd
 archives:
   - id: iopdt
