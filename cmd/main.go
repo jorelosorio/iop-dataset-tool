@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"flag"
 	"fmt"
 	"iopairs-tool/internal"
@@ -11,6 +12,9 @@ import (
 
 	"github.com/joho/godotenv"
 )
+
+//go:embed logo.txt
+var asciiLogo string
 
 var (
 	configPath  string
@@ -30,19 +34,10 @@ func main() {
 
 	godotenv.Load()
 
-	logo := `
- ________  ______   ______   ______   _________  
-/_______/\/_____/\ /_____/\ /_____/\ /________/\ 
-\__.::._\/\:::_ \ \\:::_ \ \\:::_ \ \\__.::.__\/ 
-   \::\ \  \:\ \ \ \\:(🤖)\ \\:\ \ \ \  \::\ \   
-   _\::\ \__\:\ \ \ \\: ___\/ \:\ \ \ \  \::\ \  
-  /__\::\__/\\:\_\ \ \\ \ \    \:\/.:| |  \::\ \ 
-  \________\/ \_____\/ \_\/     \____/_/   \__\/
-  `
-	fmt.Printf("\x1b[34m%s\x1b[0m", logo)
+	fmt.Println(internal.Colorize(internal.ColorGreen, asciiLogo))
 
 	if showVersion {
-		fmt.Printf("\n	Version: %s\n", version)
+		fmt.Println(internal.Colorizef(internal.ColorRed, "	\n	Version: %s", version))
 		os.Exit(0)
 	}
 
