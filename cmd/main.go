@@ -19,8 +19,10 @@ var (
 
 	//go:embed logo.txt
 	asciiLogo string
+)
 
-	version = "undefined"
+var (
+	version = "dev"
 )
 
 func init() {
