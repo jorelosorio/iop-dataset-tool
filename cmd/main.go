@@ -13,12 +13,12 @@ import (
 	"github.com/joho/godotenv"
 )
 
-//go:embed logo.txt
-var asciiLogo string
-
 var (
 	configPath  string
 	showVersion bool
+
+	//go:embed logo.txt
+	asciiLogo string
 
 	version = "undefined"
 )
