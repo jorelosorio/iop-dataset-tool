@@ -1,16 +1,13 @@
+# Input / Output Pairs Dataset Tool 🤖
 ```go
- ________  ______  ______  ______  _________
-/_______/\/_____/\/_____/\/_____/\/________/\
-\__.::._\/\:::_ \ \:::_ \ \:::_ \ \__.::.__\/
-   \::\ \  \:\ \ \ \:(🤖)\ \:\ \ \ \ \::\ \
-   _\::\ \__\:\ \ \ \: ___\/\:\ \ \ \ \::\ \
-  /__\::\__/\\:\_\ \ \ \ \   \:\/.:| | \::\ \
-  \________\/ \_____\/\_\/    \____/_/  \__\/
+ ________  ______   ______   ______   _________  
+/_______/\/_____/\ /_____/\ /_____/\ /________/\ 
+\__.::._\/\:::_ \ \\:::_ \ \\:::_ \ \\__.::.__\/ 
+   \::\ \  \:\ \ \ \\:(_) \ \\:\ \ \ \  \::\ \   
+   _\::\ \__\:\ \ \ \\: ___\/ \:\ \ \ \  \::\ \  
+  /__\::\__/\\:\_\ \ \\ \ \    \:\/.:| |  \::\ \ 
+  \________\/ \_____\/ \_\/     \____/_/   \__\/
 ```
-
-## What is IOPDT?
-
-Input / Output Pairs Dataset Tool 🤖
 
 It is a tool that allows you to infer an AI model (using OpenAI API Format) to get back responses on `input/output pairs` or a defined `JSON Schema` from a set of files. It is useful for creating datasets for machine learning models.
 
@@ -122,11 +119,11 @@ processes:
 To merge all resultant `json` files after calling the tool.
 
 ```sh
-jq -s '{conversations: add | .conversations}' *.json > merged.json
+jq -s '{questions: add | .questions}' *.json > merged.json
 ```
 
 Convert it to `sharegpt` format for for [Axolotl](https://github.com/OpenAccess-AI-Collective/axolotl?tab=readme-ov-file#dataset)
 
 ```sh
-jq -c '.conversations[] | {"conversations": [{"from": "human", "value": .input}, {"from": "gpt", "value": .output}]}' merged.json > transformed.jsonl
+jq -c '.questions[] | {"conversations": [{"from": "human", "value": .input}, {"from": "gpt", "value": .output}]}' merged.json > transformed.jsonl
 ```

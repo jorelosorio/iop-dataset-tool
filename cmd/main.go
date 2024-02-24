@@ -36,10 +36,10 @@ func main() {
 
 	godotenv.Load()
 
-	fmt.Println(internal.Colorize(internal.ColorGreen, asciiLogo))
+	fmt.Println(internal.PsychedelicGradient(asciiLogo))
 
 	if showVersion {
-		fmt.Println(internal.Colorizef(internal.ColorRed, "	\n	Version: %s", version))
+		fmt.Println(internal.Colorizef(internal.ColorMagenta, "	\n	Version: %s", version))
 		os.Exit(0)
 	}
 
